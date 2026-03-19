@@ -11,11 +11,11 @@ model = None
 tokenizer = None
 
 def load_models():
-    """Load BERT model and tokenizer"""
+    """Load BERT model and tokenizer from safetensors"""
     global model, tokenizer
     
     print("=" * 80)
-    print("LOADING BERT MODEL")
+    print("LOADING BERT MODEL FROM SAFETENSORS")
     print("=" * 80)
     
     try:
@@ -23,14 +23,37 @@ def load_models():
         
         if os.path.exists(model_path):
             print(f"\n📂 Loading BERT from: {model_path}")
+            
+            # Load tokenizer
+            print("📖 Loading tokenizer...")
             tokenizer = AutoTokenizer.from_pretrained(model_path)
-            model = AutoModelForSequenceClassification.from_pretrained(model_path)
+            print("✅ Tokenizer loaded!")
+            
+            # Load model from safetensors
+            print("🤖 Loading model from safetensors...")
+            try:
+                # Try loading with safe_tensors=True
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    model_path,
+                    torch_dtype=torch.float32
+                )
+            except Exception as e:
+                print(f"⚠️  Error with default loading: {e}")
+                print("Trying alternative loading method...")
+                # Alternative: convert safetensors to pytorch
+                from safetensors.torch import load_file
+                state_dict = load_file(os.path.join(model_path, 'model.safetensors'))
+                model = AutoModelForSequenceClassification.from_pretrained(model_path)
+                model.load_state_dict(state_dict)
+            
             model.eval()  # Set to evaluation mode
-            print("✅ BERT model loaded successfully!")
+            print("✅ Model loaded successfully!")
         else:
             print(f"❌ Model not found at: {model_path}")
     except Exception as e:
         print(f"❌ Error loading model: {e}")
+        import traceback
+        traceback.print_exc()
     
     print("=" * 80 + "\n")
     return model, tokenizer
@@ -51,7 +74,13 @@ def predict():
             return jsonify({'error': 'Model not loaded'}), 500
         
         # Tokenize
-        inputs = tokenizer(review, return_tensors='pt', truncation=True, max_length=512)
+        inputs = tokenizer(
+            review, 
+            return_tensors='pt', 
+            truncation=True, 
+            max_length=512,
+            padding=True
+        )
         
         # Predict
         with torch.no_grad():
