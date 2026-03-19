@@ -6,16 +6,49 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Load models
+# Load models - fix the path
+model = None
+vectorizer = None
+
 try:
-    with open('backend/model.pkl', 'rb') as f:
-        model = pickle.load(f)
-    with open('backend/vectorizer.pkl', 'rb') as f:
-        vectorizer = pickle.load(f)
-except:
-    print("Warning: Model files not found")
-    model = None
-    vectorizer = None
+    # Try multiple possible paths
+    model_paths = [
+        'backend/model.pkl',
+        'model.pkl',
+        '/app/backend/model.pkl',
+        '/app/model.pkl'
+    ]
+    
+    vectorizer_paths = [
+        'backend/vectorizer.pkl',
+        'vectorizer.pkl',
+        '/app/backend/vectorizer.pkl',
+        '/app/vectorizer.pkl'
+    ]
+    
+    # Try to load model
+    for path in model_paths:
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                model = pickle.load(f)
+            print(f"✅ Model loaded from: {path}")
+            break
+    
+    # Try to load vectorizer
+    for path in vectorizer_paths:
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                vectorizer = pickle.load(f)
+            print(f"✅ Vectorizer loaded from: {path}")
+            break
+    
+    if model is None:
+        print("❌ Model not found!")
+    if vectorizer is None:
+        print("❌ Vectorizer not found!")
+        
+except Exception as e:
+    print(f"Error loading models: {e}")
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -44,7 +77,11 @@ def predict():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'model_loaded': model is not None})
+    return jsonify({
+        'status': 'ok',
+        'model_loaded': model is not None,
+        'vectorizer_loaded': vectorizer is not None
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
