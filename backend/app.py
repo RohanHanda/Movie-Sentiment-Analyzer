@@ -2,53 +2,51 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle
 import os
+import sys
 
 app = Flask(__name__)
 CORS(app)
 
-# Load models - fix the path
 model = None
 vectorizer = None
 
-try:
-    # Try multiple possible paths
-    model_paths = [
-        'backend/model.pkl',
-        'model.pkl',
-        '/app/backend/model.pkl',
-        '/app/model.pkl'
-    ]
+def load_models():
+    global model, vectorizer
     
-    vectorizer_paths = [
-        'backend/vectorizer.pkl',
-        'vectorizer.pkl',
-        '/app/backend/vectorizer.pkl',
-        '/app/vectorizer.pkl'
-    ]
+    # Get the directory where this script is located
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Try to load model
-    for path in model_paths:
-        if os.path.exists(path):
-            with open(path, 'rb') as f:
-                model = pickle.load(f)
-            print(f"✅ Model loaded from: {path}")
-            break
+    # Build paths relative to this file
+    model_path = os.path.join(current_dir, 'model.pkl')
+    vectorizer_path = os.path.join(current_dir, 'vectorizer.pkl')
     
-    # Try to load vectorizer
-    for path in vectorizer_paths:
-        if os.path.exists(path):
-            with open(path, 'rb') as f:
-                vectorizer = pickle.load(f)
-            print(f"✅ Vectorizer loaded from: {path}")
-            break
+    try:
+        with open(model_path, 'rb') as f:
+            model = pickle.load(f)
+        print(f"✅ Model loaded from: {model_path}")
+    except FileNotFoundError:
+        print(f"❌ Model not found at: {model_path}")
+        print(f"Available files in {current_dir}:")
+        try:
+            files = os.listdir(current_dir)
+            for f in files:
+                print(f"  - {f}")
+        except:
+            pass
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
     
-    if model is None:
-        print("❌ Model not found!")
-    if vectorizer is None:
-        print("❌ Vectorizer not found!")
-        
-except Exception as e:
-    print(f"Error loading models: {e}")
+    try:
+        with open(vectorizer_path, 'rb') as f:
+            vectorizer = pickle.load(f)
+        print(f"✅ Vectorizer loaded from: {vectorizer_path}")
+    except FileNotFoundError:
+        print(f"❌ Vectorizer not found at: {vectorizer_path}")
+    except Exception as e:
+        print(f"❌ Error loading vectorizer: {e}")
+
+# Load models on startup
+load_models()
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -60,7 +58,7 @@ def predict():
             return jsonify({'error': 'Review cannot be empty'}), 400
         
         if model is None or vectorizer is None:
-            return jsonify({'error': 'Model not loaded'}), 500
+            return jsonify({'error': 'Models not loaded. Check server logs.'}), 500
         
         review_vec = vectorizer.transform([review])
         pred = model.predict(review_vec)[0]
