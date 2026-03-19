@@ -3,6 +3,7 @@ from flask_cors import CORS
 import pickle
 import os
 import sys
+import base64
 
 app = Flask(__name__)
 CORS(app)
@@ -13,79 +14,75 @@ vectorizer = None
 def load_models():
     global model, vectorizer
     
-    print("=" * 50)
-    print("DEBUG: Starting model loading...")
-    print(f"Current working directory: {os.getcwd()}")
-    print("=" * 50)
+    print("=" * 80)
+    print("LOADING MODELS - DEBUG INFO")
+    print("=" * 80)
+    print(f"CWD: {os.getcwd()}")
     
-    # List all directories
-    print("\nListing root directory:")
-    try:
-        for item in os.listdir('.'):
-            full_path = os.path.join('.', item)
-            if os.path.isdir(full_path):
-                print(f"  📁 {item}/")
-            else:
-                print(f"  📄 {item}")
-    except Exception as e:
-        print(f"Error listing directory: {e}")
+    # Check if we're in /app directory
+    if os.path.exists('/app/backend'):
+        print("✅ Found /app/backend")
+        os.chdir('/app')
     
-    # List backend directory
-    print("\nListing backend directory:")
-    try:
-        for item in os.listdir('./backend'):
-            print(f"  - {item}")
-    except Exception as e:
-        print(f"Error listing backend: {e}")
+    print(f"Current CWD after check: {os.getcwd()}")
     
-    # Try loading model
-    paths_to_try = [
-        './backend/model.pkl',
-        'backend/model.pkl',
-        '/app/backend/model.pkl',
-    ]
+    # List what we have
+    print("\n📂 Root directory contents:")
+    for item in os.listdir('.'):
+        size = ""
+        path = os.path.join('.', item)
+        if os.path.isfile(path):
+            size = f" ({os.path.getsize(path)} bytes)"
+        print(f"  {'📁' if os.path.isdir(path) else '📄'} {item}{size}")
     
-    print("\nTrying to load model from:")
-    for path in paths_to_try:
-        print(f"  Trying: {path}")
-        if os.path.exists(path):
-            print(f"    ✅ Found!")
-            try:
-                with open(path, 'rb') as f:
-                    model = pickle.load(f)
-                print(f"    ✅ Successfully loaded model")
-                break
-            except Exception as e:
-                print(f"    ❌ Error loading: {e}")
-        else:
-            print(f"    ❌ Not found")
+    print("\n📂 Backend directory contents:")
+    if os.path.exists('backend'):
+        for item in os.listdir('backend'):
+            path = os.path.join('backend', item)
+            size = ""
+            if os.path.isfile(path):
+                size = f" ({os.path.getsize(path)} bytes)"
+            print(f"  {'📁' if os.path.isdir(path) else '📄'} {item}{size}")
+    else:
+        print("  ❌ backend directory not found!")
     
-    # Try loading vectorizer
-    print("\nTrying to load vectorizer from:")
-    paths_to_try = [
-        './backend/vectorizer.pkl',
-        'backend/vectorizer.pkl',
-        '/app/backend/vectorizer.pkl',
-    ]
+    # Try to load model
+    model_path = 'backend/model.pkl'
+    vectorizer_path = 'backend/vectorizer.pkl'
     
-    for path in paths_to_try:
-        print(f"  Trying: {path}")
-        if os.path.exists(path):
-            print(f"    ✅ Found!")
-            try:
-                with open(path, 'rb') as f:
-                    vectorizer = pickle.load(f)
-                print(f"    ✅ Successfully loaded vectorizer")
-                break
-            except Exception as e:
-                print(f"    ❌ Error loading: {e}")
-        else:
-            print(f"    ❌ Not found")
+    print(f"\n🔍 Looking for model at: {model_path}")
+    print(f"   Exists: {os.path.exists(model_path)}")
     
-    print("=" * 50)
-    print(f"Status: model={model is not None}, vectorizer={vectorizer is not None}")
-    print("=" * 50)
+    if os.path.exists(model_path):
+        try:
+            print(f"   Loading...")
+            with open(model_path, 'rb') as f:
+                model = pickle.load(f)
+            print(f"   ✅ Model loaded successfully!")
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    print(f"\n🔍 Looking for vectorizer at: {vectorizer_path}")
+    print(f"   Exists: {os.path.exists(vectorizer_path)}")
+    
+    if os.path.exists(vectorizer_path):
+        try:
+            print(f"   Loading...")
+            with open(vectorizer_path, 'rb') as f:
+                vectorizer = pickle.load(f)
+            print(f"   ✅ Vectorizer loaded successfully!")
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    print("\n" + "=" * 80)
+    print(f"FINAL STATUS: model_loaded={model is not None}, vectorizer_loaded={vectorizer is not None}")
+    print("=" * 80 + "\n")
 
+# Load models on startup
 load_models()
 
 @app.route('/predict', methods=['POST'])
@@ -98,7 +95,11 @@ def predict():
             return jsonify({'error': 'Review cannot be empty'}), 400
         
         if model is None or vectorizer is None:
-            return jsonify({'error': 'Models not loaded'}), 500
+            return jsonify({
+                'error': 'Models not loaded',
+                'model_loaded': model is not None,
+                'vectorizer_loaded': vectorizer is not None
+            }), 500
         
         review_vec = vectorizer.transform([review])
         pred = model.predict(review_vec)[0]
@@ -111,14 +112,16 @@ def predict():
             'review': review
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
-        'vectorizer_loaded': vectorizer is not None
+        'vectorizer_loaded': vectorizer is not None,
+        'cwd': os.getcwd()
     })
 
 if __name__ == '__main__':
