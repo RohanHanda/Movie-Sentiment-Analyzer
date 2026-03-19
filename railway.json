@@ -1,0 +1,14 @@
+{
+  "services": {
+    "backend": {
+      "root": ".",
+      "buildCommand": "pip install -r requirements.txt",
+      "startCommand": "gunicorn backend.app:app"
+    },
+    "frontend": {
+      "root": "frontend",
+      "buildCommand": "npm install && npm run build",
+      "startCommand": "npx serve -s build -l 5173"
+    }
+  }
+}
