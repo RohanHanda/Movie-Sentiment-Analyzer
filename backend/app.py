@@ -3,7 +3,6 @@ from flask_cors import CORS
 import pickle
 import os
 import sys
-import base64
 
 app = Flask(__name__)
 CORS(app)
@@ -17,103 +16,86 @@ def load_models():
     print("=" * 80)
     print("LOADING MODELS - DEBUG INFO")
     print("=" * 80)
-    print(f"CWD: {os.getcwd()}")
     
-    # Check if we're in /app directory
-    if os.path.exists('/app/backend'):
-        print("✅ Found /app/backend")
-        os.chdir('/app')
+    try:
+        with open('backend/model.pkl', 'rb') as f:
+            model = pickle.load(f)
+        print("✅ Model loaded successfully!")
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
+        import traceback
+        traceback.print_exc()
     
-    print(f"Current CWD after check: {os.getcwd()}")
+    try:
+        with open('backend/vectorizer.pkl', 'rb') as f:
+            vectorizer = pickle.load(f)
+        print("✅ Vectorizer loaded successfully!")
+    except Exception as e:
+        print(f"❌ Error loading vectorizer: {e}")
+        import traceback
+        traceback.print_exc()
     
-    # List what we have
-    print("\n📂 Root directory contents:")
-    for item in os.listdir('.'):
-        size = ""
-        path = os.path.join('.', item)
-        if os.path.isfile(path):
-            size = f" ({os.path.getsize(path)} bytes)"
-        print(f"  {'📁' if os.path.isdir(path) else '📄'} {item}{size}")
-    
-    print("\n📂 Backend directory contents:")
-    if os.path.exists('backend'):
-        for item in os.listdir('backend'):
-            path = os.path.join('backend', item)
-            size = ""
-            if os.path.isfile(path):
-                size = f" ({os.path.getsize(path)} bytes)"
-            print(f"  {'📁' if os.path.isdir(path) else '📄'} {item}{size}")
-    else:
-        print("  ❌ backend directory not found!")
-    
-    # Try to load model
-    model_path = 'backend/model.pkl'
-    vectorizer_path = 'backend/vectorizer.pkl'
-    
-    print(f"\n🔍 Looking for model at: {model_path}")
-    print(f"   Exists: {os.path.exists(model_path)}")
-    
-    if os.path.exists(model_path):
-        try:
-            print(f"   Loading...")
-            with open(model_path, 'rb') as f:
-                model = pickle.load(f)
-            print(f"   ✅ Model loaded successfully!")
-        except Exception as e:
-            print(f"   ❌ Error: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    print(f"\n🔍 Looking for vectorizer at: {vectorizer_path}")
-    print(f"   Exists: {os.path.exists(vectorizer_path)}")
-    
-    if os.path.exists(vectorizer_path):
-        try:
-            print(f"   Loading...")
-            with open(vectorizer_path, 'rb') as f:
-                vectorizer = pickle.load(f)
-            print(f"   ✅ Vectorizer loaded successfully!")
-        except Exception as e:
-            print(f"   ❌ Error: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    print("\n" + "=" * 80)
-    print(f"FINAL STATUS: model_loaded={model is not None}, vectorizer_loaded={vectorizer is not None}")
+    print("=" * 80)
+    print(f"FINAL STATUS: model={model is not None}, vectorizer={vectorizer is not None}")
     print("=" * 80 + "\n")
 
-# Load models on startup
 load_models()
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
+        print("\n" + "=" * 80)
+        print("PREDICT REQUEST RECEIVED")
+        print("=" * 80)
+        
         data = request.json
+        print(f"Data received: {data}")
+        
         review = data.get('review', '').strip()
+        print(f"Review: {review}")
         
         if not review:
+            print("❌ Review is empty")
             return jsonify({'error': 'Review cannot be empty'}), 400
         
-        if model is None or vectorizer is None:
-            return jsonify({
-                'error': 'Models not loaded',
-                'model_loaded': model is not None,
-                'vectorizer_loaded': vectorizer is not None
-            }), 500
+        if model is None:
+            print("❌ Model is None")
+            return jsonify({'error': 'Model not loaded'}), 500
         
+        if vectorizer is None:
+            print("❌ Vectorizer is None")
+            return jsonify({'error': 'Vectorizer not loaded'}), 500
+        
+        print(f"🔄 Transforming review...")
         review_vec = vectorizer.transform([review])
-        pred = model.predict(review_vec)[0]
-        prob = model.predict_proba(review_vec)[0].max()
-        sentiment = 'Positive' if pred == 1 else 'Negative'
+        print(f"✅ Review transformed")
         
-        return jsonify({
+        print(f"🔄 Making prediction...")
+        pred = model.predict(review_vec)[0]
+        print(f"✅ Prediction: {pred}")
+        
+        prob = model.predict_proba(review_vec)[0].max()
+        print(f"✅ Probability: {prob}")
+        
+        sentiment = 'Positive' if pred == 1 else 'Negative'
+        print(f"✅ Sentiment: {sentiment}")
+        
+        response = {
             'sentiment': sentiment,
             'confidence': float(prob),
             'review': review
-        })
+        }
+        print(f"Response: {response}")
+        print("=" * 80 + "\n")
+        
+        return jsonify(response)
+        
     except Exception as e:
+        print(f"❌ ERROR: {e}")
         import traceback
-        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+        traceback.print_exc()
+        print("=" * 80 + "\n")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
