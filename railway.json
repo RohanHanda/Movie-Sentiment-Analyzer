@@ -3,18 +3,13 @@
     "backend": {
       "root": ".",
       "buildCommand": "pip install -r requirements.txt",
-      "startCommand": "gunicorn backend.app:app",
+      "startCommand": "cd backend && gunicorn --bind 0.0.0.0:$PORT app:app",
       "envVars": [
         {
           "key": "PYTHONUNBUFFERED",
           "value": "1"
         }
       ]
-    },
-    "frontend": {
-      "root": "frontend",
-      "buildCommand": "npm install && npm run build",
-      "startCommand": "npx serve -s build -l 3000"
     }
   }
 }
