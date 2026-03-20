@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
 import os
+import subprocess
 
 app = Flask(__name__)
 CORS(app)
@@ -9,15 +10,34 @@ CORS(app)
 model = None
 vectorizer = None
 
+def check_system_libs():
+    """Check if required system libraries are available"""
+    print("=" * 80)
+    print("CHECKING SYSTEM LIBRARIES")
+    print("=" * 80)
+    
+    libs = ['libgomp.so.1', 'libgomp.so']
+    for lib in libs:
+        try:
+            result = subprocess.run(['ldconfig', '-p'], capture_output=True, text=True)
+            if lib in result.stdout:
+                print(f"✅ Found: {lib}")
+            else:
+                print(f"❌ Missing: {lib}")
+        except Exception as e:
+            print(f"❌ Error checking {lib}: {e}")
+    print("=" * 80 + "\n")
+
 def load_models():
     """Load pre-trained models using joblib"""
     global model, vectorizer
+    
+    check_system_libs()
     
     print("=" * 80)
     print("LOADING MODELS WITH JOBLIB")
     print("=" * 80)
     
-    # Try different possible paths
     model_paths = [
         'backend/sentiment_model.joblib',
         './backend/sentiment_model.joblib',
@@ -30,7 +50,6 @@ def load_models():
         '/app/backend/tfidf_vectorizer.joblib',
     ]
     
-    # Load model
     print("\n🔍 Loading sentiment model...")
     for path in model_paths:
         if os.path.exists(path):
@@ -47,7 +66,6 @@ def load_models():
     if model is None:
         print("  ⚠️  Model not found at any path!")
     
-    # Load vectorizer
     print("\n🔍 Loading TF-IDF vectorizer...")
     for path in vectorizer_paths:
         if os.path.exists(path):
@@ -70,7 +88,6 @@ def load_models():
     
     return model, vectorizer
 
-# Load models on startup
 model, vectorizer = load_models()
 
 @app.route('/predict', methods=['POST'])
@@ -88,10 +105,7 @@ def predict():
         if vectorizer is None:
             return jsonify({'error': 'Vectorizer not loaded'}), 500
         
-        # Transform review
         review_vec = vectorizer.transform([review])
-        
-        # Make prediction
         pred = model.predict(review_vec)[0]
         prob = model.predict_proba(review_vec)[0].max()
         sentiment = 'Positive' if pred == 1 else 'Negative'
