@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Minimal dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -10,9 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/app.py .
-COPY backend/sentiment_model.joblib .
-COPY backend/tfidf_vectorizer.joblib .
+# Copy app AND model files
+COPY backend/app.py ./app.py
+COPY backend/sentiment_model.joblib ./sentiment_model.joblib
+COPY backend/tfidf_vectorizer.joblib ./tfidf_vectorizer.joblib
 
 EXPOSE 5000
 
