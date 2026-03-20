@@ -4,96 +4,77 @@ import joblib
 import os
 
 app = Flask(__name__)
-
-# More aggressive CORS configuration
-CORS(app, 
-     origins=["https://rohanhanda.github.io", "http://localhost:3000", "http://localhost:5000"],
-     methods=["GET", "POST", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization"],
-     supports_credentials=True,
-     max_age=3600
-)
+CORS(app)
 
 model = None
 vectorizer = None
 
 def load_models():
-    """Load pre-trained LightGBM models"""
+    """Load pre-trained models using joblib"""
     global model, vectorizer
     
     print("=" * 80)
-    print("LOADING LIGHTGBM MODELS")
+    print("LOADING MODELS WITH JOBLIB")
     print("=" * 80)
     
-    try:
-        print("\n📂 Loading model files...")
-        
-        model_paths = [
-            'sentiment_model.joblib',
-            '/app/sentiment_model.joblib',
-        ]
-        
-        vectorizer_paths = [
-            'tfidf_vectorizer.joblib',
-            '/app/tfidf_vectorizer.joblib',
-        ]
-        
-        for path in model_paths:
-            if os.path.exists(path):
-                print(f"   Found model at: {path}")
+    # Try different possible paths
+    model_paths = [
+        'backend/sentiment_model.joblib',
+        './backend/sentiment_model.joblib',
+        '/app/backend/sentiment_model.joblib',
+    ]
+    
+    vectorizer_paths = [
+        'backend/tfidf_vectorizer.joblib',
+        './backend/tfidf_vectorizer.joblib',
+        '/app/backend/tfidf_vectorizer.joblib',
+    ]
+    
+    # Load model
+    print("\n🔍 Loading sentiment model...")
+    for path in model_paths:
+        if os.path.exists(path):
+            try:
+                print(f"  Found at: {path}")
                 model = joblib.load(path)
-                print("   ✅ Model loaded!")
+                print(f"  ✅ Model loaded successfully!")
                 break
-        
-        if model is None:
-            print("   ❌ Model not found!")
-        
-        for path in vectorizer_paths:
-            if os.path.exists(path):
-                print(f"   Found vectorizer at: {path}")
+            except Exception as e:
+                print(f"  ❌ Error loading from {path}: {e}")
+        else:
+            print(f"  ❌ Not found: {path}")
+    
+    if model is None:
+        print("  ⚠️  Model not found at any path!")
+    
+    # Load vectorizer
+    print("\n🔍 Loading TF-IDF vectorizer...")
+    for path in vectorizer_paths:
+        if os.path.exists(path):
+            try:
+                print(f"  Found at: {path}")
                 vectorizer = joblib.load(path)
-                print("   ✅ Vectorizer loaded!")
+                print(f"  ✅ Vectorizer loaded successfully!")
                 break
-        
-        if vectorizer is None:
-            print("   ❌ Vectorizer not found!")
-        
-    except Exception as e:
-        print(f"❌ Error loading models: {e}")
-        import traceback
-        traceback.print_exc()
+            except Exception as e:
+                print(f"  ❌ Error loading from {path}: {e}")
+        else:
+            print(f"  ❌ Not found: {path}")
     
+    if vectorizer is None:
+        print("  ⚠️  Vectorizer not found at any path!")
+    
+    print("\n" + "=" * 80)
+    print(f"Status: model_loaded={model is not None}, vectorizer_loaded={vectorizer is not None}")
     print("=" * 80 + "\n")
-
-load_models()
-
-@app.before_request
-def handle_preflight():
-    """Handle CORS preflight requests"""
-    if request.method == "OPTIONS":
-        response = jsonify({})
-        response.headers.add("Access-Control-Allow-Origin", request.headers.get("Origin", "*"))
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-        response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
-        response.headers.add("Access-Control-Max-Age", "3600")
-        return response
-
-@app.after_request
-def after_request(response):
-    """Add CORS headers to all responses"""
-    origin = request.headers.get("Origin", "*")
-    response.headers.add("Access-Control-Allow-Origin", origin)
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
-    response.headers.add("Access-Control-Max-Age", "3600")
-    return response
-
-@app.route('/predict', methods=['POST', 'OPTIONS'])
-def predict():
-    """Predict sentiment of a movie review"""
-    if request.method == 'OPTIONS':
-        return '', 204
     
+    return model, vectorizer
+
+# Load models on startup
+model, vectorizer = load_models()
+
+@app.route('/predict', methods=['POST'])
+def predict():
     try:
         data = request.json
         review = data.get('review', '').strip()
@@ -101,10 +82,16 @@ def predict():
         if not review:
             return jsonify({'error': 'Review cannot be empty'}), 400
         
-        if model is None or vectorizer is None:
+        if model is None:
             return jsonify({'error': 'Model not loaded'}), 500
         
+        if vectorizer is None:
+            return jsonify({'error': 'Vectorizer not loaded'}), 500
+        
+        # Transform review
         review_vec = vectorizer.transform([review])
+        
+        # Make prediction
         pred = model.predict(review_vec)[0]
         prob = model.predict_proba(review_vec)[0].max()
         sentiment = 'Positive' if pred == 1 else 'Negative'
@@ -116,32 +103,15 @@ def predict():
         })
         
     except Exception as e:
-        print(f"❌ Error: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/health', methods=['GET', 'OPTIONS'])
+@app.route('/health', methods=['GET'])
 def health():
-    """Health check endpoint"""
-    if request.method == 'OPTIONS':
-        return '', 204
-    
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
-        'vectorizer_loaded': vectorizer is not None
-    })
-
-@app.route('/info', methods=['GET', 'OPTIONS'])
-def info():
-    """Get model information"""
-    if request.method == 'OPTIONS':
-        return '', 204
-    
-    return jsonify({
-        'model': 'LightGBM',
-        'accuracy': '83.76%',
-        'speed': 'Fast',
-        'model_size': '50MB'
+        'vectorizer_loaded': vectorizer is not None,
+        'cwd': os.getcwd()
     })
 
 if __name__ == '__main__':
