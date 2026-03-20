@@ -7,12 +7,13 @@ app = Flask(__name__)
 model = None
 vectorizer = None
 
-# Manual CORS headers
+# CORS Headers
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Max-Age'] = '3600'
     return response
 
 @app.before_request
@@ -22,16 +23,36 @@ def handle_preflight():
 
 def load_models():
     global model, vectorizer
-    print("Loading models...")
+    print("=" * 60)
+    print("Loading LightGBM models...")
+    print("=" * 60)
     
     try:
-        model = joblib.load('backend/sentiment_model.joblib')
-        vectorizer = joblib.load('backend/tfidf_vectorizer.joblib')
-        print("✅ Models loaded!")
+        # Try different paths
+        paths = [
+            'sentiment_model.joblib',
+            '../sentiment_model.joblib',
+            './sentiment_model.joblib'
+        ]
+        
+        for path in paths:
+            if os.path.exists(path):
+                print(f"✅ Found model at: {path}")
+                model = joblib.load(path)
+                vectorizer = joblib.load(path.replace('sentiment_model', 'tfidf_vectorizer'))
+                print("✅ Models loaded successfully!")
+                return
+        
+        print("❌ Models not found!")
+        
     except Exception as e:
-        print(f"❌ Error loading models: {e}")
+        print(f"❌ Error: {e}")
 
 load_models()
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({'message': 'Movie Sentiment Analyzer API', 'status': 'running'})
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
@@ -56,11 +77,16 @@ def predict():
             'review': review
         })
     except Exception as e:
+        print(f"Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok'})
+    return jsonify({
+        'status': 'ok',
+        'model_loaded': model is not None,
+        'vectorizer_loaded': vectorizer is not None
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
