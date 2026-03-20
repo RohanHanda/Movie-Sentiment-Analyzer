@@ -1,8 +1,11 @@
-[install.system]
-pkgs = ["libgomp"]
-
 [build]
-cmds = ["pip install -r requirements.txt"]
+nixpkgs = ["python311", "libgomp", "gcc"]
+
+[build.phases.setup]
+cmd = "pip install --upgrade pip setuptools wheel"
+
+[build.phases.build] 
+cmd = "pip install -r requirements.txt"
 
 [start]
 cmd = "gunicorn --bind 0.0.0.0:$PORT backend.app:app"
