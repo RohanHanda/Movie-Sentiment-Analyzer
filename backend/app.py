@@ -19,9 +19,43 @@ def load_models():
     
     try:
         print("\n📂 Loading model files...")
-        model = joblib.load('backend/sentiment_model.joblib')
-        vectorizer = joblib.load('backend/tfidf_vectorizer.joblib')
-        print("✅ Models loaded successfully!")
+        print(f"   Current directory: {os.getcwd()}")
+        
+        # Try multiple paths
+        model_paths = [
+            'sentiment_model.joblib',
+            '/app/sentiment_model.joblib',
+            './sentiment_model.joblib'
+        ]
+        
+        vectorizer_paths = [
+            'tfidf_vectorizer.joblib',
+            '/app/tfidf_vectorizer.joblib',
+            './tfidf_vectorizer.joblib'
+        ]
+        
+        # Load model
+        for path in model_paths:
+            if os.path.exists(path):
+                print(f"   Found model at: {path}")
+                model = joblib.load(path)
+                print("   ✅ Model loaded!")
+                break
+        
+        if model is None:
+            print("   ❌ Model not found!")
+            print(f"   Available files: {os.listdir('.')}")
+        
+        # Load vectorizer
+        for path in vectorizer_paths:
+            if os.path.exists(path):
+                print(f"   Found vectorizer at: {path}")
+                vectorizer = joblib.load(path)
+                print("   ✅ Vectorizer loaded!")
+                break
+        
+        if vectorizer is None:
+            print("   ❌ Vectorizer not found!")
         
     except Exception as e:
         print(f"❌ Error loading models: {e}")
