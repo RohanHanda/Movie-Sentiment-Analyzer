@@ -24,29 +24,37 @@ def handle_preflight():
 def load_models():
     global model, vectorizer
     print("=" * 60)
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Files in current dir: {os.listdir('.')}")
     print("Loading LightGBM models...")
     print("=" * 60)
     
     try:
-        # Try different paths
-        paths = [
-            'sentiment_model.joblib',
-            '../sentiment_model.joblib',
-            './sentiment_model.joblib'
-        ]
+        # Look for model files
+        model_file = None
+        vectorizer_file = None
         
-        for path in paths:
-            if os.path.exists(path):
-                print(f"✅ Found model at: {path}")
-                model = joblib.load(path)
-                vectorizer = joblib.load(path.replace('sentiment_model', 'tfidf_vectorizer'))
-                print("✅ Models loaded successfully!")
-                return
+        # Search for files
+        for file in os.listdir('.'):
+            if 'sentiment_model' in file and file.endswith('.joblib'):
+                model_file = file
+            if 'tfidf_vectorizer' in file and file.endswith('.joblib'):
+                vectorizer_file = file
         
-        print("❌ Models not found!")
+        if model_file and vectorizer_file:
+            print(f"✅ Found model: {model_file}")
+            print(f"✅ Found vectorizer: {vectorizer_file}")
+            model = joblib.load(model_file)
+            vectorizer = joblib.load(vectorizer_file)
+            print("✅ Models loaded successfully!")
+        else:
+            print(f"❌ Model file not found! Available files:")
+            print(os.listdir('.'))
         
     except Exception as e:
         print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
 
 load_models()
 
