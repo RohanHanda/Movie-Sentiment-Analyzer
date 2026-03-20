@@ -2,8 +2,6 @@
   "services": {
     "backend": {
       "root": ".",
-      "buildCommand": "apt-get update && apt-get install -y libgomp1 && pip install -r requirements.txt && cp -r backend /app/ || true",
-      "startCommand": "gunicorn --bind 0.0.0.0:$PORT backend.app:app",
       "envVars": [
         {
           "key": "PYTHONUNBUFFERED",
