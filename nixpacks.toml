@@ -1,0 +1,8 @@
+[install.system]
+pkgs = ["libgomp"]
+
+[build]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "gunicorn --bind 0.0.0.0:$PORT backend.app:app"
