@@ -2,8 +2,8 @@
   "services": {
     "backend": {
       "root": ".",
-      "buildCommand": "pip install -r requirements.txt",
-      "startCommand": "cd backend && gunicorn --bind 0.0.0.0:$PORT app:app",
+      "buildCommand": "pip install -r requirements.txt && cp backend/*.joblib . || true",
+      "startCommand": "gunicorn --bind 0.0.0.0:$PORT backend.app:app --chdir .",
       "envVars": [
         {
           "key": "PYTHONUNBUFFERED",
