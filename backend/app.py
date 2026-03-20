@@ -4,7 +4,19 @@ import joblib
 import os
 
 app = Flask(__name__)
-CORS(app)
+
+# More explicit CORS configuration
+CORS(app,
+     resources={
+         r"/*": {
+             "origins": "*",
+             "methods": ["GET", "POST", "OPTIONS"],
+             "allow_headers": ["Content-Type", "Authorization"],
+             "max_age": 3600
+         }
+     },
+     supports_credentials=False
+)
 
 model = None
 vectorizer = None
@@ -19,15 +31,15 @@ def load_models():
     
     # Try different possible paths
     model_paths = [
+        'sentiment_model.joblib',
+        '/app/sentiment_model.joblib',
         'backend/sentiment_model.joblib',
-        './backend/sentiment_model.joblib',
-        '/app/backend/sentiment_model.joblib',
     ]
     
     vectorizer_paths = [
+        'tfidf_vectorizer.joblib',
+        '/app/tfidf_vectorizer.joblib',
         'backend/tfidf_vectorizer.joblib',
-        './backend/tfidf_vectorizer.joblib',
-        '/app/backend/tfidf_vectorizer.joblib',
     ]
     
     # Load model
@@ -41,8 +53,6 @@ def load_models():
                 break
             except Exception as e:
                 print(f"  ❌ Error loading from {path}: {e}")
-        else:
-            print(f"  ❌ Not found: {path}")
     
     if model is None:
         print("  ⚠️  Model not found at any path!")
@@ -58,8 +68,6 @@ def load_models():
                 break
             except Exception as e:
                 print(f"  ❌ Error loading from {path}: {e}")
-        else:
-            print(f"  ❌ Not found: {path}")
     
     if vectorizer is None:
         print("  ⚠️  Vectorizer not found at any path!")
@@ -67,14 +75,15 @@ def load_models():
     print("\n" + "=" * 80)
     print(f"Status: model_loaded={model is not None}, vectorizer_loaded={vectorizer is not None}")
     print("=" * 80 + "\n")
-    
-    return model, vectorizer
 
 # Load models on startup
-model, vectorizer = load_models()
+load_models()
 
-@app.route('/predict', methods=['POST'])
+@app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     try:
         data = request.json
         review = data.get('review', '').strip()
@@ -105,8 +114,11 @@ def predict():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/health', methods=['GET'])
+@app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
