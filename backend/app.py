@@ -1,25 +1,21 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask import Flask, request, jsonify, make_response
 import joblib
 import os
 
 app = Flask(__name__)
 
-# More explicit CORS configuration
-CORS(app,
-     resources={
-         r"/*": {
-             "origins": "*",
-             "methods": ["GET", "POST", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization"],
-             "max_age": 3600
-         }
-     },
-     supports_credentials=False
-)
-
 model = None
 vectorizer = None
+
+# Manually add CORS headers to every response
+@app.after_request
+def add_cors_headers(response):
+    """Add CORS headers to all responses"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, DELETE'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Max-Age'] = '3600'
+    return response
 
 def load_models():
     """Load pre-trained models using joblib"""
@@ -29,7 +25,6 @@ def load_models():
     print("LOADING MODELS WITH JOBLIB")
     print("=" * 80)
     
-    # Try different possible paths
     model_paths = [
         'sentiment_model.joblib',
         '/app/sentiment_model.joblib',
@@ -42,7 +37,6 @@ def load_models():
         'backend/tfidf_vectorizer.joblib',
     ]
     
-    # Load model
     print("\n🔍 Loading sentiment model...")
     for path in model_paths:
         if os.path.exists(path):
@@ -57,7 +51,6 @@ def load_models():
     if model is None:
         print("  ⚠️  Model not found at any path!")
     
-    # Load vectorizer
     print("\n🔍 Loading TF-IDF vectorizer...")
     for path in vectorizer_paths:
         if os.path.exists(path):
@@ -81,8 +74,11 @@ load_models()
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
+    """Predict sentiment of a movie review"""
+    # Handle preflight request
     if request.method == 'OPTIONS':
-        return '', 204
+        response = make_response('', 204)
+        return response
     
     try:
         data = request.json
@@ -112,18 +108,36 @@ def predict():
         })
         
     except Exception as e:
+        print(f"❌ Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
+    """Health check endpoint"""
     if request.method == 'OPTIONS':
-        return '', 204
+        response = make_response('', 204)
+        return response
     
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
         'vectorizer_loaded': vectorizer is not None,
         'cwd': os.getcwd()
+    })
+
+@app.route('/', methods=['GET', 'OPTIONS'])
+def index():
+    """Root endpoint"""
+    if request.method == 'OPTIONS':
+        response = make_response('', 204)
+        return response
+    
+    return jsonify({
+        'message': 'Movie Sentiment Analyzer API',
+        'endpoints': {
+            'POST /predict': 'Predict sentiment',
+            'GET /health': 'Health check'
+        }
     })
 
 if __name__ == '__main__':
