@@ -5,14 +5,14 @@ import os
 
 app = Flask(__name__)
 
-# Enable CORS for all routes
-CORS(app, resources={
-    r"/*": {
-        "origins": ["https://rohanhanda.github.io", "http://localhost:3000", "http://localhost:5000"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
-    }
-})
+# More aggressive CORS configuration
+CORS(app, 
+     origins=["https://rohanhanda.github.io", "http://localhost:3000", "http://localhost:5000"],
+     methods=["GET", "POST", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"],
+     supports_credentials=True,
+     max_age=3600
+)
 
 model = None
 vectorizer = None
@@ -67,9 +67,33 @@ def load_models():
 
 load_models()
 
+@app.before_request
+def handle_preflight():
+    """Handle CORS preflight requests"""
+    if request.method == "OPTIONS":
+        response = jsonify({})
+        response.headers.add("Access-Control-Allow-Origin", request.headers.get("Origin", "*"))
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+        response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
+        response.headers.add("Access-Control-Max-Age", "3600")
+        return response
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses"""
+    origin = request.headers.get("Origin", "*")
+    response.headers.add("Access-Control-Allow-Origin", origin)
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
+    response.headers.add("Access-Control-Max-Age", "3600")
+    return response
+
 @app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
     """Predict sentiment of a movie review"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     try:
         data = request.json
         review = data.get('review', '').strip()
@@ -98,6 +122,9 @@ def predict():
 @app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
     """Health check endpoint"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
@@ -107,6 +134,9 @@ def health():
 @app.route('/info', methods=['GET', 'OPTIONS'])
 def info():
     """Get model information"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     return jsonify({
         'model': 'LightGBM',
         'accuracy': '83.76%',
