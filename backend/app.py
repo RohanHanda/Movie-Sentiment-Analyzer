@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import joblib
 import os
+import sys
 
 app = Flask(__name__)
 
@@ -25,31 +26,42 @@ def load_models():
     global model, vectorizer
     print("=" * 60)
     print(f"Current directory: {os.getcwd()}")
-    print(f"Files in current dir: {os.listdir('.')}")
-    print("Loading LightGBM models...")
     print("=" * 60)
     
     try:
-        # Look for model files
+        # Try multiple locations
+        search_paths = [
+            '/app',
+            os.getcwd(),
+            os.path.join(os.getcwd(), 'backend'),
+            '/app/backend'
+        ]
+        
         model_file = None
         vectorizer_file = None
         
-        # Search for files
-        for file in os.listdir('.'):
-            if 'sentiment_model' in file and file.endswith('.joblib'):
-                model_file = file
-            if 'tfidf_vectorizer' in file and file.endswith('.joblib'):
-                vectorizer_file = file
+        for search_path in search_paths:
+            if os.path.exists(search_path):
+                print(f"\n📂 Checking: {search_path}")
+                files = os.listdir(search_path)
+                print(f"   Files: {files}")
+                
+                for file in files:
+                    if 'sentiment_model' in file and file.endswith('.joblib'):
+                        model_file = os.path.join(search_path, file)
+                    if 'tfidf_vectorizer' in file and file.endswith('.joblib'):
+                        vectorizer_file = os.path.join(search_path, file)
         
         if model_file and vectorizer_file:
-            print(f"✅ Found model: {model_file}")
-            print(f"✅ Found vectorizer: {vectorizer_file}")
+            print(f"\n✅ Loading model from: {model_file}")
+            print(f"✅ Loading vectorizer from: {vectorizer_file}")
             model = joblib.load(model_file)
             vectorizer = joblib.load(vectorizer_file)
             print("✅ Models loaded successfully!")
         else:
-            print(f"❌ Model file not found! Available files:")
-            print(os.listdir('.'))
+            print(f"\n❌ Model files not found!")
+            print(f"   model_file: {model_file}")
+            print(f"   vectorizer_file: {vectorizer_file}")
         
     except Exception as e:
         print(f"❌ Error: {e}")
@@ -97,5 +109,5 @@ def health():
     })
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     app.run(debug=False, host='0.0.0.0', port=port)
