@@ -4,7 +4,15 @@ import joblib
 import os
 
 app = Flask(__name__)
-CORS(app)
+
+# Enable CORS for all routes
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://rohanhanda.github.io", "http://localhost:3000", "http://localhost:5000"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 model = None
 vectorizer = None
@@ -19,22 +27,17 @@ def load_models():
     
     try:
         print("\n📂 Loading model files...")
-        print(f"   Current directory: {os.getcwd()}")
         
-        # Try multiple paths
         model_paths = [
             'sentiment_model.joblib',
             '/app/sentiment_model.joblib',
-            './sentiment_model.joblib'
         ]
         
         vectorizer_paths = [
             'tfidf_vectorizer.joblib',
             '/app/tfidf_vectorizer.joblib',
-            './tfidf_vectorizer.joblib'
         ]
         
-        # Load model
         for path in model_paths:
             if os.path.exists(path):
                 print(f"   Found model at: {path}")
@@ -44,9 +47,7 @@ def load_models():
         
         if model is None:
             print("   ❌ Model not found!")
-            print(f"   Available files: {os.listdir('.')}")
         
-        # Load vectorizer
         for path in vectorizer_paths:
             if os.path.exists(path):
                 print(f"   Found vectorizer at: {path}")
@@ -64,10 +65,9 @@ def load_models():
     
     print("=" * 80 + "\n")
 
-# Load models on startup
 load_models()
 
-@app.route('/predict', methods=['POST'])
+@app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
     """Predict sentiment of a movie review"""
     try:
@@ -80,10 +80,7 @@ def predict():
         if model is None or vectorizer is None:
             return jsonify({'error': 'Model not loaded'}), 500
         
-        # Transform review
         review_vec = vectorizer.transform([review])
-        
-        # Make prediction
         pred = model.predict(review_vec)[0]
         prob = model.predict_proba(review_vec)[0].max()
         sentiment = 'Positive' if pred == 1 else 'Negative'
@@ -98,7 +95,7 @@ def predict():
         print(f"❌ Error: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/health', methods=['GET'])
+@app.route('/health', methods=['GET', 'OPTIONS'])
 def health():
     """Health check endpoint"""
     return jsonify({
@@ -107,7 +104,7 @@ def health():
         'vectorizer_loaded': vectorizer is not None
     })
 
-@app.route('/info', methods=['GET'])
+@app.route('/info', methods=['GET', 'OPTIONS'])
 def info():
     """Get model information"""
     return jsonify({
